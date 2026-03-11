@@ -60,9 +60,17 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
           })}
         </nav>
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-[#F5A623] flex items-center justify-center text-white font-bold text-sm">
-            {user.firstName[0]}{user.lastName[0]}
-          </div>
+          {user.profilePicture ? (
+            <img
+              src={user.profilePicture}
+              alt={`${user.firstName} ${user.lastName} profile picture`}
+              className="w-9 h-9 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-9 h-9 rounded-full bg-[#F5A623] flex items-center justify-center text-white font-bold text-sm">
+              {user.firstName[0]}{user.lastName[0]}
+            </div>
+          )}
           <span className="text-sm font-medium text-gray-700">{user.firstName}</span>
         </div>
       </header>

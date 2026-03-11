@@ -30,6 +30,7 @@ export interface User {
   teacherNotes?: TeacherNote[];
   streak?: number;
   totalStars?: number;
+  profilePicture?: string;
 }
 
 export interface TeacherNote {

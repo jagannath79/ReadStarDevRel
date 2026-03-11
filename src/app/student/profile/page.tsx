@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { ChangeEvent, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { User, Settings, LogOut, BookOpen, Globe, ChevronRight } from 'lucide-react';
+import { User, Settings, LogOut, BookOpen, ChevronRight, Camera } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { updateUser } from '@/db/indexeddb';
 import { useToast } from '@/components/shared/Toast';
@@ -15,6 +15,8 @@ export default function StudentProfile() {
   const [form, setForm] = useState({ firstName: user?.firstName || '', lastName: user?.lastName || '' });
   const [defaultDiff, setDefaultDiff] = useState(user?.defaultDifficulty || 'simple');
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!user) return null;
 
@@ -41,6 +43,46 @@ export default function StudentProfile() {
     }
   };
 
+
+
+  const handleProfileImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Please select a valid image file.', 'error');
+      event.target.value = '';
+      return;
+    }
+
+    const maxFileSize = 2 * 1024 * 1024;
+    if (file.size > maxFileSize) {
+      showToast('Image must be smaller than 2MB.', 'error');
+      event.target.value = '';
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const imageDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Unable to read selected image.'));
+        reader.readAsDataURL(file);
+      });
+
+      const updatedUser = { ...user, profilePicture: imageDataUrl };
+      await updateUser(updatedUser);
+      updateCurrentUser(updatedUser);
+      showToast('Profile picture updated!', 'success');
+    } catch {
+      showToast('Failed to upload profile picture. Please try again.', 'error');
+    } finally {
+      setUploadingImage(false);
+      event.target.value = '';
+    }
+  };
+
   const handleLogout = () => {
     logout();
     router.replace('/');
@@ -50,16 +92,43 @@ export default function StudentProfile() {
     <div className="max-w-lg mx-auto px-4 py-8 page-enter">
       {/* Avatar */}
       <div className="text-center mb-8">
-        <div
-          className="w-24 h-24 rounded-full flex items-center justify-center text-white text-3xl font-bold mx-auto mb-3 shadow-lg"
-          style={{ background: avatarColor }}
-        >
-          {initials}
+        <div className="relative w-fit mx-auto mb-3">
+          {user.profilePicture ? (
+            <img
+              src={user.profilePicture}
+              alt={`${user.firstName} ${user.lastName} profile picture`}
+              className="w-24 h-24 rounded-full object-cover shadow-lg"
+            />
+          ) : (
+            <div
+              className="w-24 h-24 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg"
+              style={{ background: avatarColor }}
+            >
+              {initials}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingImage}
+            className="absolute -bottom-1 -right-1 p-2 rounded-full bg-[#1B3A8C] text-white shadow-md hover:bg-blue-900 disabled:opacity-60"
+            aria-label="Upload profile picture"
+          >
+            <Camera className="w-4 h-4" />
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleProfileImageUpload}
+          />
         </div>
         <h1 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Fraunces, serif' }}>
           {user.firstName} {user.lastName}
         </h1>
         <p className="text-gray-500 text-sm">{user.email}</p>
+        {uploadingImage && <p className="text-xs text-[#1B3A8C] mt-1">Uploading picture...</p>}
         {user.grade && (
           <span className="inline-block mt-2 bg-blue-100 text-[#1B3A8C] text-xs font-medium px-3 py-1 rounded-full">
             Grade {user.grade}

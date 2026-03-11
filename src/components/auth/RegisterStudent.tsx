@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { ArrowLeft, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/components/shared/Toast';
 
 interface Props { onBack: () => void; }
 
@@ -45,7 +45,7 @@ export default function RegisterStudent({ onBack }: Props) {
   const [success, setSuccess] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { registerStudent, error, isLoading, clearError } = useAuth();
-  const router = useRouter();
+  const { showToast } = useToast();
 
   const update = (k: string, v: string) => {
     setForm(p => ({ ...p, [k]: v }));
@@ -70,6 +70,7 @@ export default function RegisterStudent({ onBack }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+
     const ok = await registerStudent({
       firstName: form.firstName,
       lastName: form.lastName,
@@ -78,7 +79,50 @@ export default function RegisterStudent({ onBack }: Props) {
       password: form.password,
       grade: parseInt(form.grade),
     });
-    if (ok) setSuccess(true);
+
+    if (!ok) return;
+
+    showToast(
+      {
+        title: '🎉 Account created successfully!',
+        description: `Welcome ${form.firstName}! A confirmation email has been sent to ${form.email}.`,
+      },
+      'success'
+    );
+
+    try {
+      const response = await fetch('/api/notifications/registration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          firstName: form.firstName,
+          lastName: form.lastName,
+          username: form.username,
+          email: form.email,
+          grade: parseInt(form.grade),
+        }),
+      });
+
+      if (!response.ok) {
+        showToast(
+          {
+            title: 'Account created, but email is pending',
+            description: 'We could not send the confirmation email right now. You can still sign in normally.',
+          },
+          'warning'
+        );
+      }
+    } catch {
+      showToast(
+        {
+          title: 'Account created, but email is pending',
+          description: 'We could not send the confirmation email right now. You can still sign in normally.',
+        },
+        'warning'
+      );
+    }
+
+    setSuccess(true);
   };
 
   if (success) {

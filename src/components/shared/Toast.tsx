@@ -5,14 +5,19 @@ import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-react';
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
+interface ToastContent {
+  title: string;
+  description?: string;
+}
+
 interface Toast {
   id: string;
   type: ToastType;
-  message: string;
+  content: ToastContent;
 }
 
 interface ToastContextValue {
-  showToast: (message: string, type?: ToastType) => void;
+  showToast: (message: string | ToastContent, type?: ToastType) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -20,9 +25,12 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const showToast = useCallback((message: string, type: ToastType = 'info') => {
+  const showToast = useCallback((message: string | ToastContent, type: ToastType = 'info') => {
+    const content: ToastContent = typeof message === 'string'
+      ? { title: message }
+      : message;
     const id = Math.random().toString(36).slice(2);
-    setToasts(prev => [...prev, { id, type, message }]);
+    setToasts(prev => [...prev, { id, type, content }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 4000);
@@ -40,10 +48,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   };
 
   const borders: Record<ToastType, string> = {
-    success: 'border-l-4 border-emerald-500',
-    error: 'border-l-4 border-red-500',
-    warning: 'border-l-4 border-amber-500',
-    info: 'border-l-4 border-blue-500',
+    success: 'border-emerald-200',
+    error: 'border-red-200',
+    warning: 'border-amber-200',
+    info: 'border-blue-200',
   };
 
   return (
@@ -53,10 +61,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {toasts.map(toast => (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex items-center gap-3 bg-white rounded-xl px-4 py-3 shadow-lg ${borders[toast.type]} min-w-[280px] max-w-sm toast-enter`}
+            className={`pointer-events-auto flex items-start gap-3 bg-white/95 backdrop-blur border rounded-xl px-4 py-3 shadow-lg ${borders[toast.type]} min-w-[300px] max-w-sm toast-enter`}
           >
-            {icons[toast.type]}
-            <span className="text-sm text-gray-800 flex-1">{toast.message}</span>
+            <div className="pt-0.5">{icons[toast.type]}</div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-gray-900">{toast.content.title}</p>
+              {toast.content.description && (
+                <p className="text-xs text-gray-600 mt-0.5">{toast.content.description}</p>
+              )}
+            </div>
             <button
               onClick={() => dismiss(toast.id)}
               className="text-gray-400 hover:text-gray-600 transition-colors"

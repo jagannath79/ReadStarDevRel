@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  upn           String?   @unique
+  password      String?
+  role          String    @default("USER")
+  department    String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+
+  accounts   Account[]
+  sessions   Session[]
+  auditLogs  AuditLog[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  timestamp   DateTime @default(now())
+  userId      String?
+  userName    String?
+  userEmail   String?
+  action      String
+  taskType    String
+  status      String   // SUCCESS | FAILURE | PARTIAL | RUNNING
+  details     String?  // JSON string with task details
+  targetUsers String?  // JSON array of affected users
+  duration    Int?     // milliseconds
+  errorMessage String?
+  ipAddress   String?
+  userAgent   String?
+  batchId     String?  // for bulk operations
+  itemCount   Int?     // total items in batch
+  successCount Int?    // successful items
+  failureCount Int?    // failed items
+  psScript    String?  // which PowerShell script was used
+  psOutput    String?  // raw PS output (truncated)
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([timestamp])
+  @@index([userId])
+  @@index([taskType])
+  @@index([status])
+  @@index([batchId])
+  @@map("audit_logs")
+}
+
+model Settings {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  category  String   @default("general")
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@index([category])
+  @@map("settings")
+}
+
+model TaskTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  taskType    String
+  description String?
+  csvTemplate String?  // CSV column headers for bulk operations
+  psScript    String?  // Associated PS script filename
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("task_templates")
+}
+
+// ── Real-time notification events ─────────────────────────────────────────────
+// One row per task execution event (processing → success/error/partial).
+// Broadcast via SSE to all connected clients for a global live-activity feed.
+model Notification {
+  id           String   @id @default(cuid())
+  type         String   // "processing" | "success" | "error" | "partial"
+  taskType     String
+  taskLabel    String   // human-readable task name, e.g. "Add User to Group"
+  title        String
+  message      String
+  userId       String?  // who triggered the action
+  userName     String?
+  userEmail    String?
+  isBulk       Boolean  @default(false)
+  itemCount    Int?
+  successCount Int?
+  failureCount Int?
+  duration     Int?     // milliseconds (populated after completion)
+  auditLogId   String?  // back-reference to audit_logs entry after task completes
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("notifications")
+}

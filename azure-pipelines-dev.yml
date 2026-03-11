@@ -1,0 +1,131 @@
+# ──────────────────────────────────────────────────────────────────────────────
+#  IAMOneStop — DEV Pipeline
+#  Triggered on every push to the `dev` branch.
+#  Builds, type-checks, lints, then deploys to the Dev Azure App Service.
+#
+#  Required Pipeline Variables (set in Azure DevOps → Pipelines → Variables):
+#    AZURE_SERVICE_CONNECTION  — Azure DevOps service connection name
+#    DEV_WEBAPP_NAME           — Azure App Service name for Dev (e.g. iamone-dev)
+#    NEXTAUTH_URL              — Public URL of the Dev app (e.g. https://iamone-dev.azurewebsites.net)
+#    NEXTAUTH_SECRET           — Random secret (mark as secret)
+#    AZURE_AD_CLIENT_ID        — Entra App Registration Client ID
+#    AZURE_AD_CLIENT_SECRET    — Entra App Registration Client Secret (mark as secret)
+#    AZURE_AD_TENANT_ID        — Entra Tenant ID
+# ──────────────────────────────────────────────────────────────────────────────
+
+trigger:
+  branches:
+    include:
+      - dev
+
+pr: none   # PR validation runs separately; this pipeline only deploys on merge
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  NODE_VERSION: "20.x"
+  # Build number used to version the artifact
+  BUILD_LABEL: "dev-$(Build.BuildNumber)"
+
+stages:
+
+# ── Stage 1: Build & Validate ─────────────────────────────────────────────────
+- stage: Build
+  displayName: "Build & Validate"
+  jobs:
+  - job: Build
+    displayName: "Install → Type-check → Lint → Build"
+    steps:
+
+    - task: NodeTool@0
+      displayName: "Use Node.js $(NODE_VERSION)"
+      inputs:
+        versionSpec: "$(NODE_VERSION)"
+
+    - script: npm ci
+      displayName: "npm ci (clean install)"
+
+    - script: npx prisma generate
+      displayName: "Generate Prisma client"
+
+    - script: npx tsc --noEmit
+      displayName: "TypeScript type-check"
+
+    - script: npm run lint
+      displayName: "ESLint"
+      continueOnError: true   # Lint warnings shouldn't block a dev deploy
+
+    - script: npm run build
+      displayName: "Next.js production build"
+      env:
+        # DATABASE_URL is only needed at runtime; a placeholder is enough for build
+        DATABASE_URL: "file:/tmp/build.db"
+        NEXTAUTH_URL: $(NEXTAUTH_URL)
+        NEXTAUTH_SECRET: $(NEXTAUTH_SECRET)
+        AZURE_AD_CLIENT_ID: $(AZURE_AD_CLIENT_ID)
+        AZURE_AD_CLIENT_SECRET: $(AZURE_AD_CLIENT_SECRET)
+        AZURE_AD_TENANT_ID: $(AZURE_AD_TENANT_ID)
+
+    # ── Prune dev-only dependencies before packaging ─────────────────────────
+    - script: npm prune --production
+      displayName: "Prune dev dependencies"
+
+    # ── Package everything needed at runtime into a zip artifact ─────────────
+    - task: ArchiveFiles@2
+      displayName: "Create deployment archive"
+      inputs:
+        rootFolderOrFile: "$(System.DefaultWorkingDirectory)"
+        includeRootFolder: false
+        archiveType: zip
+        archiveFile: "$(Build.ArtifactStagingDirectory)/$(BUILD_LABEL).zip"
+        replaceExistingArchive: true
+        exclude: |
+          .git/**
+          .next/cache/**
+          src/**
+          tests/**
+          .env
+          .env.*
+          !.env.example
+          prisma/*.db
+          prisma/*.db-journal
+          *.log
+          .claude/**
+          coverage/**
+
+    - publish: "$(Build.ArtifactStagingDirectory)/$(BUILD_LABEL).zip"
+      artifact: drop
+      displayName: "Publish artifact"
+
+# ── Stage 2: Deploy to Dev App Service ───────────────────────────────────────
+- stage: Deploy
+  displayName: "Deploy → Dev"
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - deployment: DeployDev
+    displayName: "Deploy to Dev App Service"
+    environment: development
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureWebApp@1
+            displayName: "Deploy to $(DEV_WEBAPP_NAME)"
+            inputs:
+              azureSubscription: "$(AZURE_SERVICE_CONNECTION)"
+              appType: webAppLinux
+              appName: "$(DEV_WEBAPP_NAME)"
+              package: "$(Pipeline.Workspace)/drop/$(BUILD_LABEL).zip"
+              runtimeStack: "NODE|20-lts"
+              startUpCommand: "bash startup.sh"
+              appSettings: |
+                -NODE_ENV production
+                -DATABASE_URL file:/home/data/app.db
+                -NEXTAUTH_URL $(NEXTAUTH_URL)
+                -NEXTAUTH_SECRET $(NEXTAUTH_SECRET)
+                -AZURE_AD_CLIENT_ID $(AZURE_AD_CLIENT_ID)
+                -AZURE_AD_CLIENT_SECRET $(AZURE_AD_CLIENT_SECRET)
+                -AZURE_AD_TENANT_ID $(AZURE_AD_TENANT_ID)
+                -ENVIRONMENT dev

@@ -21,7 +21,7 @@ import {
   computeLongestFluencyRun,
   type Miscue, type PatternResult, type BettsCriteria,
 } from '@/utils/diagnostics';
-import { getGradeBenchmark } from '@/utils/phonetics';
+import { getGradeBenchmark, phoneticallySimilar, visuallySimilar } from '@/utils/phonetics';
 import type { PauseInfo, ProsodyScoreBreakdown, SpeechRateMetrics } from '@/utils/acousticAnalysis';
 import BettsLevelBadge from '@/components/analysis/BettsLevelBadge';
 import { FluencyLevelInline } from '@/components/analysis/FluencyLevelGauge';
@@ -30,10 +30,34 @@ import ProsodyRadar from '@/components/analysis/ProsodyRadar';
 import TranscriptAnnotator from '@/components/analysis/TranscriptAnnotator';
 import WaveformPlayer from '@/components/analysis/WaveformPlayer';
 import { v4 as uuidv4 } from 'uuid';
-import { Mic, MicOff, Pause, Play, RefreshCw, Volume2, ChevronRight, Star, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { Mic, MicOff, Pause, Play, RefreshCw, Volume2, ChevronRight, Star, Check, ChevronDown, ChevronUp, Brain, Ear, Target, Sparkles } from 'lucide-react';
 
-type Step = 'select' | 'custom-input' | 'reading' | 'sentence-review' | 'summary';
+type Step = 'select' | 'custom-input' | 'reading' | 'sentence-review' | 'summary' | 'phonics-lab';
 type Difficulty = 'simple' | 'medium' | 'complex';
+
+const PHONICS_PATHWAYS = [
+  {
+    id: 'short-vowels',
+    title: 'Short Vowel Builder',
+    focus: 'Build automaticity with CVC words and short-vowel sound contrasts.',
+    words: ['cat', 'bed', 'pig', 'hot', 'sun', 'lap', 'ten', 'sip'],
+    sounds: ['/a/', '/e/', '/i/', '/o/', '/u/'],
+  },
+  {
+    id: 'digraphs',
+    title: 'Digraph Detective',
+    focus: 'Practice common two-letter sound teams that often confuse learners.',
+    words: ['ship', 'thin', 'whale', 'phone', 'chin', 'graph', 'thumb', 'shell'],
+    sounds: ['/sh/', '/th/', '/wh/', '/ph/', '/ch/'],
+  },
+  {
+    id: 'blends',
+    title: 'Consonant Blend Sprint',
+    focus: 'Strengthen segmenting and blending for initial and final consonant clusters.',
+    words: ['frog', 'slide', 'black', 'train', 'stamp', 'plant', 'glad', 'crisp'],
+    sounds: ['/fr/', '/sl/', '/bl/', '/tr/', '/st/', '/pl/', '/gl/', '/cr/'],
+  },
+] as const;
 
 // Per-sentence extended analysis results (held in state between review and finishSession)
 interface SentenceAnalysis {
@@ -139,6 +163,8 @@ export default function PracticePage() {
   const [customText, setCustomText] = useState('');
   const [isCustomSession, setIsCustomSession] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [phonicsQuery, setPhonicsQuery] = useState('');
+  const [phonicsAttempt, setPhonicsAttempt] = useState('');
 
   const recording = useRecording();
   const speech = useSpeechRecognition(user?.language || 'en-US');
@@ -508,6 +534,22 @@ export default function PracticePage() {
     await recording.startRecording();
   };
 
+
+  const recommendedPathway = PHONICS_PATHWAYS.find(pathway =>
+    pathway.words.some(word => word.includes(phonicsQuery.toLowerCase().trim())),
+  );
+
+  const normalizedQuery = phonicsQuery.trim().toLowerCase();
+  const normalizedAttempt = phonicsAttempt.trim().toLowerCase();
+  const hasPhonicsAttempt = normalizedQuery.length > 0 && normalizedAttempt.length > 0;
+  const similarityInsight = !hasPhonicsAttempt
+    ? null
+    : phoneticallySimilar(normalizedQuery, normalizedAttempt)
+      ? 'Great! Your attempt is phonetically close. Keep that mouth shape and try again for precision.'
+      : visuallySimilar(normalizedQuery, normalizedAttempt)
+        ? 'Close visual match, but the sound still differs. Tap each word to hear and mirror the sound slowly.'
+        : 'Different sound pattern detected. Break the word into chunks and practice one chunk at a time.';
+
   // ─────────────────────────────────────────────────────────────────────────────
   // UI: Difficulty Selection
   // ─────────────────────────────────────────────────────────────────────────────
@@ -568,6 +610,26 @@ export default function PracticePage() {
               <ChevronRight className="w-5 h-5 text-purple-700 opacity-60 group-hover:translate-x-1 transition-transform" />
             </div>
           </button>
+
+
+          <button onClick={() => { setPhonicsQuery(''); setPhonicsAttempt(''); setStep('phonics-lab'); }} disabled={loadingStart}
+            className="w-full text-left p-6 rounded-2xl border-2 border-cyan-200 bg-cyan-50 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-60 group"
+            style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <span className="text-4xl">🧠</span>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-bold text-gray-900 text-lg" style={{ fontFamily: 'Fraunces, serif' }}>Phonics Lab</h3>
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-700">Foundational</span>
+                  </div>
+                  <p className="text-gray-600 text-sm">Targeted sound-letter training for students who need phonics support</p>
+                  <div className="mt-1 text-xs">⭐⭐⭐ Best for beginners</div>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-cyan-700 opacity-60 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </button>
         </div>
 
         {loadingStart && (
@@ -606,6 +668,91 @@ export default function PracticePage() {
             className="flex-1 py-3 rounded-xl bg-purple-600 text-white font-semibold hover:bg-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
             {loadingStart ? 'Preparing…' : 'Start Practice →'}
           </button>
+        </div>
+      </div>
+    );
+  }
+
+
+  if (step === 'phonics-lab') {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-8 page-enter">
+        <div className="text-center mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Fraunces, serif' }}>🧠 Phonics Lab</h1>
+          <p className="text-gray-500">Clinically-informed sound-to-letter practice for learners building core decoding skills.</p>
+        </div>
+
+        <div className="bg-white rounded-2xl p-6 mb-5" style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
+          <div className="grid md:grid-cols-3 gap-4 mb-4">
+            <div className="rounded-xl bg-blue-50 p-4">
+              <Ear className="w-5 h-5 text-blue-700 mb-2" />
+              <h3 className="font-semibold text-blue-900">Hear</h3>
+              <p className="text-xs text-blue-700">Tap any word to hear a model pronunciation.</p>
+            </div>
+            <div className="rounded-xl bg-emerald-50 p-4">
+              <Brain className="w-5 h-5 text-emerald-700 mb-2" />
+              <h3 className="font-semibold text-emerald-900">Map</h3>
+              <p className="text-xs text-emerald-700">Connect spoken sounds to spelling patterns.</p>
+            </div>
+            <div className="rounded-xl bg-amber-50 p-4">
+              <Target className="w-5 h-5 text-amber-700 mb-2" />
+              <h3 className="font-semibold text-amber-900">Practice</h3>
+              <p className="text-xs text-amber-700">Repeat with immediate, supportive feedback.</p>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-3 mb-4">
+            {PHONICS_PATHWAYS.map(pathway => (
+              <div key={pathway.id} className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                <h3 className="font-semibold text-gray-900 mb-1">{pathway.title}</h3>
+                <p className="text-xs text-gray-600 mb-2">{pathway.focus}</p>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {pathway.sounds.map(sound => (
+                    <span key={sound} className="text-xs px-2 py-1 rounded-full bg-white border border-gray-200 text-gray-600">{sound}</span>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {pathway.words.slice(0, 4).map(word => (
+                    <button
+                      key={word}
+                      type="button"
+                      onClick={() => speakText(word, user?.language || 'en-US')}
+                      className="text-sm px-2.5 py-1 rounded-lg bg-white border border-gray-200 hover:border-blue-300 hover:text-blue-700 transition-colors"
+                    >
+                      {word}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="border border-cyan-200 bg-cyan-50 rounded-xl p-4">
+            <h3 className="font-semibold text-cyan-900 mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4" />Sound Match Coach</h3>
+            <div className="grid md:grid-cols-2 gap-3">
+              <input
+                value={phonicsQuery}
+                onChange={e => setPhonicsQuery(e.target.value)}
+                placeholder="Target word (e.g., ship)"
+                className="w-full border border-cyan-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-300"
+              />
+              <input
+                value={phonicsAttempt}
+                onChange={e => setPhonicsAttempt(e.target.value)}
+                placeholder="Student attempt (e.g., sip)"
+                className="w-full border border-cyan-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-300"
+              />
+            </div>
+            {similarityInsight && <p className="mt-3 text-sm text-cyan-900">{similarityInsight}</p>}
+            {recommendedPathway && (
+              <p className="mt-2 text-xs text-cyan-800">Recommended next drill: <span className="font-semibold">{recommendedPathway.title}</span>.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button onClick={() => setStep('select')} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-all">← Back</button>
+          <button onClick={() => startSession('simple')} className="flex-1 py-3 rounded-xl bg-[#1B3A8C] text-white font-semibold hover:bg-blue-900 transition-all">Start Guided Reading →</button>
         </div>
       </div>
     );

@@ -80,6 +80,10 @@ export async function signInWithGoogle(): Promise<GoogleProfile> {
   const clientId = await resolveGoogleClientId();
   if (!clientId) {
     throw new Error('Google Sign-In is not configured yet. Set GOOGLE_CLIENT_ID (or NEXT_PUBLIC_GOOGLE_CLIENT_ID) in your environment and restart the app.');
+export async function signInWithGoogle(): Promise<GoogleProfile> {
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  if (!clientId) {
+    throw new Error('Google Sign-In is not configured. Missing NEXT_PUBLIC_GOOGLE_CLIENT_ID.');
   }
 
   await loadGoogleScript();
@@ -127,3 +131,4 @@ export async function signInWithGoogle(): Promise<GoogleProfile> {
     window.google.accounts.id.prompt();
   });
 }
+

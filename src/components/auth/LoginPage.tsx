@@ -267,6 +267,7 @@ export default function LoginPage() {
                   <GoogleIcon />
                   Continue with Google
                 </span>
+                Continue with Google
               </button>
             </form>
 

@@ -44,7 +44,7 @@ export default function RegisterStudent({ onBack }: Props) {
   const [showPwd, setShowPwd] = useState(false);
   const [success, setSuccess] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const { registerStudent, error, isLoading, clearError } = useAuth();
+  const { registerStudent, registerStudentWithGoogle, error, isLoading, clearError } = useAuth();
   const { showToast } = useToast();
 
   const update = (k: string, v: string) => {
@@ -65,6 +65,15 @@ export default function RegisterStudent({ onBack }: Props) {
     else if (form.password.length < 6) e.password = 'Password must be at least 6 characters.';
     setErrors(e);
     return Object.keys(e).length === 0;
+  };
+
+
+  const handleGoogleRegistration = async () => {
+    clearError();
+    const ok = await registerStudentWithGoogle(parseInt(form.grade));
+    if (ok) {
+      setSuccess(true);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -235,6 +244,15 @@ export default function RegisterStudent({ onBack }: Props) {
                   Creating account...
                 </span>
               ) : 'Create Account'}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleGoogleRegistration}
+              disabled={isLoading}
+              className="w-full py-3.5 rounded-xl font-semibold border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 transition-all disabled:opacity-60"
+            >
+              Create Account with Google
             </button>
           </form>
         </div>

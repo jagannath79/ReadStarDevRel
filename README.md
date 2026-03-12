@@ -1,4 +1,4 @@
-# AD Identity Management Portal
+# ReadStar
 
 Enterprise-grade web application for Active Directory Identity and Access Management tasks.
 

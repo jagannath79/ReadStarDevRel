@@ -1,9 +1,10 @@
 'use client';
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
-import { User, authenticateUser, createUser, getUserByEmail, getUserByUsername, userExists } from '@/db/indexeddb';
+import { User, authenticateUser, createUser, getUserByEmail, getUserByUsername, updateUser } from '@/db/indexeddb';
 import { initializeApp } from '@/db/appInit';
 import { v4 as uuidv4 } from 'uuid';
+import { signInWithGoogle } from '@/lib/googleAuth';
 
 interface AuthState {
   user: User | null;
@@ -42,8 +43,10 @@ interface AuthContextValue {
   isInitialized: boolean;
   error: string | null;
   login: (usernameOrEmail: string, password: string) => Promise<boolean>;
+  loginWithGoogle: () => Promise<boolean>;
   logout: () => void;
   registerStudent: (data: RegisterStudentData) => Promise<boolean>;
+  registerStudentWithGoogle: (grade: number) => Promise<boolean>;
   registerTeacher: (data: RegisterTeacherData) => Promise<boolean>;
   clearError: () => void;
   updateCurrentUser: (user: User) => void;
@@ -124,6 +127,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'LOGOUT' });
   }, []);
 
+  const buildUniqueUsername = useCallback(async (seed: string) => {
+    const base = seed
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '')
+      .slice(0, 16) || `google${Math.floor(Math.random() * 10000)}`;
+
+    let candidate = base;
+    let counter = 1;
+    while (await getUserByUsername(candidate)) {
+      candidate = `${base}${counter}`;
+      counter += 1;
+    }
+    return candidate;
+  }, []);
+
   const registerStudent = useCallback(async (data: RegisterStudentData): Promise<boolean> => {
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
@@ -157,6 +175,87 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
   }, []);
+
+  const loginWithGoogle = useCallback(async (): Promise<boolean> => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
+    try {
+      const googleProfile = await signInWithGoogle();
+      const existing = await getUserByEmail(googleProfile.email);
+      if (!existing) {
+        dispatch({
+          type: 'SET_ERROR',
+          payload: 'No account found for this Google email. Please create an account first.',
+        });
+        return false;
+      }
+
+      const updatedUser: User = {
+        ...existing,
+        firstName: googleProfile.firstName || existing.firstName,
+        lastName: googleProfile.lastName || existing.lastName,
+        profilePicture: googleProfile.picture ?? existing.profilePicture,
+        lastActive: Date.now(),
+      };
+
+      await updateUser(updatedUser);
+
+      sessionStorage.setItem('readstar_user', JSON.stringify(updatedUser));
+      dispatch({ type: 'SET_USER', payload: updatedUser });
+      return true;
+    } catch (err) {
+      dispatch({
+        type: 'SET_ERROR',
+        payload: err instanceof Error ? err.message : 'Google sign-in failed. Please try again.',
+      });
+      return false;
+    }
+  }, []);
+
+  const registerStudentWithGoogle = useCallback(async (grade: number): Promise<boolean> => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    dispatch({ type: 'SET_ERROR', payload: null });
+    try {
+      const googleProfile = await signInWithGoogle();
+      const existing = await getUserByEmail(googleProfile.email);
+      if (existing) {
+        dispatch({
+          type: 'SET_ERROR',
+          payload: 'An account with this Google email already exists. Please sign in instead.',
+        });
+        return false;
+      }
+
+      const username = await buildUniqueUsername(googleProfile.email.split('@')[0] || googleProfile.firstName);
+      const newUser: User = {
+        id: uuidv4(),
+        username,
+        email: googleProfile.email,
+        password: '',
+        role: 'student',
+        firstName: googleProfile.firstName,
+        lastName: googleProfile.lastName,
+        grade,
+        createdAt: Date.now(),
+        lastActive: Date.now(),
+        defaultDifficulty: 'simple',
+        language: 'en-US',
+        streak: 0,
+        totalStars: 0,
+        teacherNotes: [],
+        profilePicture: googleProfile.picture,
+      };
+      await createUser(newUser);
+      dispatch({ type: 'SET_LOADING', payload: false });
+      return true;
+    } catch (err) {
+      dispatch({
+        type: 'SET_ERROR',
+        payload: err instanceof Error ? err.message : 'Google registration failed. Please try again.',
+      });
+      return false;
+    }
+  }, [buildUniqueUsername]);
 
   const registerTeacher = useCallback(async (data: RegisterTeacherData): Promise<boolean> => {
     dispatch({ type: 'SET_LOADING', payload: true });
@@ -203,8 +302,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isInitialized: state.isInitialized,
       error: state.error,
       login,
+      loginWithGoogle,
       logout,
       registerStudent,
+      registerStudentWithGoogle,
       registerTeacher,
       clearError,
       updateCurrentUser,

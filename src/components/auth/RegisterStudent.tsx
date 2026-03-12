@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { isGoogleSignInConfigured } from '@/lib/googleAuth';
 import { useToast } from '@/components/shared/Toast';
 
 interface Props { onBack: () => void; }
@@ -44,7 +45,25 @@ export default function RegisterStudent({ onBack }: Props) {
   const [showPwd, setShowPwd] = useState(false);
   const [success, setSuccess] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isGoogleAvailable, setIsGoogleAvailable] = useState(false);
   const { registerStudent, registerStudentWithGoogle, error, isLoading, clearError } = useAuth();
+
+  useEffect(() => {
+    let mounted = true;
+
+    void (async () => {
+      try {
+        const configured = await isGoogleSignInConfigured();
+        if (mounted) setIsGoogleAvailable(configured);
+      } catch {
+        if (mounted) setIsGoogleAvailable(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
   const { showToast } = useToast();
 
   const update = (k: string, v: string) => {
@@ -246,14 +265,16 @@ export default function RegisterStudent({ onBack }: Props) {
               ) : 'Create Account'}
             </button>
 
-            <button
-              type="button"
-              onClick={handleGoogleRegistration}
-              disabled={isLoading}
-              className="w-full py-3.5 rounded-xl font-semibold border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 transition-all disabled:opacity-60"
-            >
-              Create Account with Google
-            </button>
+            {isGoogleAvailable && (
+              <button
+                type="button"
+                onClick={handleGoogleRegistration}
+                disabled={isLoading}
+                className="w-full py-3.5 rounded-xl font-semibold border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 transition-all disabled:opacity-60"
+              >
+                Create Account with Google
+              </button>
+            )}
           </form>
         </div>
       </div>

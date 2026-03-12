@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BookOpen, Eye, EyeOff, GraduationCap, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { isGoogleSignInConfigured } from '@/lib/googleAuth';
 import RegisterStudent from './RegisterStudent';
 
 type Role = 'student' | 'teacher';
@@ -28,9 +29,27 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ username?: string; password?: string }>({});
+  const [isGoogleAvailable, setIsGoogleAvailable] = useState(false);
 
   const { login, loginWithGoogle, error, isLoading, clearError } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    let mounted = true;
+
+    void (async () => {
+      try {
+        const configured = await isGoogleSignInConfigured();
+        if (mounted) setIsGoogleAvailable(configured);
+      } catch {
+        if (mounted) setIsGoogleAvailable(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   if (showRegister) {
     return <RegisterStudent onBack={() => setShowRegister(false)} />;
@@ -257,18 +276,19 @@ export default function LoginPage() {
                 ) : 'Sign In'}
               </button>
 
-              <button
-                type="button"
-                onClick={handleGoogleLogin}
-                disabled={isLoading}
-                className="w-full mt-3 py-3.5 rounded-xl font-semibold border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 transition-all duration-200 disabled:opacity-60"
-              >
-                <span className="flex items-center justify-center gap-2">
-                  <GoogleIcon />
-                  Continue with Google
-                </span>
-                Continue with Google
-              </button>
+              {isGoogleAvailable && (
+                <button
+                  type="button"
+                  onClick={handleGoogleLogin}
+                  disabled={isLoading}
+                  className="w-full mt-3 py-3.5 rounded-xl font-semibold border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 transition-all duration-200 disabled:opacity-60"
+                >
+                  <span className="flex items-center justify-center gap-2">
+                    <GoogleIcon />
+                    Continue with Google
+                  </span>
+                </button>
+              )}
             </form>
 
             {role === 'student' && (

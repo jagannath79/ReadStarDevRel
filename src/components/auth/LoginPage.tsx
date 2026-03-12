@@ -17,7 +17,7 @@ export default function LoginPage() {
   const [showRegister, setShowRegister] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ username?: string; password?: string }>({});
 
-  const { login, error, isLoading, clearError } = useAuth();
+  const { login, loginWithGoogle, error, isLoading, clearError } = useAuth();
   const router = useRouter();
 
   if (showRegister) {
@@ -37,6 +37,15 @@ export default function LoginPage() {
     clearError();
     if (!validate()) return;
     const success = await login(usernameOrEmail, password);
+    if (success) {
+      router.replace(role === 'teacher' ? '/teacher/dashboard' : '/student/dashboard');
+    }
+  };
+
+
+  const handleGoogleLogin = async () => {
+    clearError();
+    const success = await loginWithGoogle();
     if (success) {
       router.replace(role === 'teacher' ? '/teacher/dashboard' : '/student/dashboard');
     }
@@ -234,6 +243,15 @@ export default function LoginPage() {
                     Signing in...
                   </span>
                 ) : 'Sign In'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={isLoading}
+                className="w-full mt-3 py-3.5 rounded-xl font-semibold border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 transition-all duration-200 disabled:opacity-60"
+              >
+                Continue with Google
               </button>
             </form>
 

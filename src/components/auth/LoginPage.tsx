@@ -8,6 +8,18 @@ import RegisterStudent from './RegisterStudent';
 
 type Role = 'student' | 'teacher';
 
+
+function GoogleIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="w-5 h-5">
+      <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.3-1.5 3.8-5.5 3.8-3.3 0-6.1-2.7-6.1-6s2.8-6 6.1-6c1.9 0 3.2.8 3.9 1.5l2.7-2.6C16.9 3.3 14.6 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12S6.7 21.6 12 21.6c6.9 0 9.6-4.8 9.6-7.3 0-.5-.1-.9-.1-1.3H12z" />
+      <path fill="#34A853" d="M3.5 7.4l3.2 2.3C7.5 7.8 9.6 6.4 12 6.4c1.9 0 3.2.8 3.9 1.5l2.7-2.6C16.9 3.3 14.6 2.4 12 2.4 8.2 2.4 4.9 4.6 3.5 7.4z" />
+      <path fill="#FBBC05" d="M12 21.6c2.5 0 4.7-.8 6.3-2.3l-2.9-2.4c-.8.6-1.9 1-3.4 1-4 0-5.3-2.5-5.5-3.8l-3.2 2.5c1.4 2.8 4.5 5 8.7 5z" />
+      <path fill="#4285F4" d="M21.6 12.3c0-.6-.1-1.1-.2-1.6H12v3.9h5.5c-.2 1.1-.9 2-1.7 2.6l2.9 2.4c1.7-1.5 2.9-3.8 2.9-7.3z" />
+    </svg>
+  );
+}
+
 export default function LoginPage() {
   const [role, setRole] = useState<Role>('student');
   const [usernameOrEmail, setUsernameOrEmail] = useState('');
@@ -251,6 +263,10 @@ export default function LoginPage() {
                 disabled={isLoading}
                 className="w-full mt-3 py-3.5 rounded-xl font-semibold border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 transition-all duration-200 disabled:opacity-60"
               >
+                <span className="flex items-center justify-center gap-2">
+                  <GoogleIcon />
+                  Continue with Google
+                </span>
                 Continue with Google
               </button>
             </form>

@@ -40,6 +40,7 @@ function decodeJwt(token: string): Record<string, unknown> {
 }
 
 let scriptPromise: Promise<void> | null = null;
+let clientIdPromise: Promise<string> | null = null;
 
 function loadGoogleScript(): Promise<void> {
   if (window.google?.accounts?.id) return Promise.resolve();
@@ -58,6 +59,27 @@ function loadGoogleScript(): Promise<void> {
   return scriptPromise;
 }
 
+async function resolveGoogleClientId(): Promise<string> {
+  if (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
+    return process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  }
+
+  if (!clientIdPromise) {
+    clientIdPromise = fetch('/api/auth/google-config', { cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error('Unable to load Google Sign-In settings from server.');
+        return res.json() as Promise<{ clientId?: string }>;
+      })
+      .then((json) => json.clientId?.trim() ?? '');
+  }
+
+  return clientIdPromise;
+}
+
+export async function signInWithGoogle(): Promise<GoogleProfile> {
+  const clientId = await resolveGoogleClientId();
+  if (!clientId) {
+    throw new Error('Google Sign-In is not configured yet. Set GOOGLE_CLIENT_ID (or NEXT_PUBLIC_GOOGLE_CLIENT_ID) in your environment and restart the app.');
 export async function signInWithGoogle(): Promise<GoogleProfile> {
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   if (!clientId) {

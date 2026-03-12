@@ -76,6 +76,11 @@ async function resolveGoogleClientId(): Promise<string> {
   return clientIdPromise;
 }
 
+export async function isGoogleSignInConfigured(): Promise<boolean> {
+  const clientId = await resolveGoogleClientId();
+  return Boolean(clientId);
+}
+
 export async function signInWithGoogle(): Promise<GoogleProfile> {
   const clientId = await resolveGoogleClientId();
   if (!clientId) {
